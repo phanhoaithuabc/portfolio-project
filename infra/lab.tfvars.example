@@ -1,0 +1,7 @@
+environment = "lab"
+admin_cidr = "203.0.113.10/32"
+ssh_public_key = "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY"
+# GCP only: add project_id = "your-existing-project"
+# AWS optional: pod_instance_credentials = true, external_secrets_enabled = true, snapshot_retention_count = 7
+# Shared AWS host: provision the media bucket with infra/aws-media (bucket_name + node_role_name) instead of a second VM.
+# No web_cidr override: only admin_cidr can access HTTP/HTTPS by default.

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: portfolio-observability
+description: Bounded single-node metrics, traces, and optional logs
+version: 0.1.0
+type: application

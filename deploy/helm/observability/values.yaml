@@ -1,0 +1,45 @@
+storageClass: local-path
+grafanaSecret: grafana-admin
+logs:
+  enabled: false
+components:
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    port: 9090
+    args:
+      [
+        --config.file=/etc/config/config,
+        --storage.tsdb.path=/data,
+        --storage.tsdb.retention.time=10d,
+        --storage.tsdb.retention.size=4GB,
+      ]
+    cpu: 100m
+    memory: 256Mi
+    limit: 768Mi
+    storage: 6Gi
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    port: 9093
+    args: [--config.file=/etc/config/config, --storage.path=/data]
+    cpu: 25m
+    memory: 32Mi
+    limit: 128Mi
+  grafana:
+    image: grafana/grafana:11.6.0
+    port: 3000
+    cpu: 50m
+    memory: 128Mi
+    limit: 384Mi
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.123.0
+    port: 4318
+    args: [--config=/etc/config/config]
+    cpu: 50m
+    memory: 64Mi
+    limit: 192Mi
+  jaeger:
+    image: jaegertracing/all-in-one:1.67.0
+    port: 16686
+    cpu: 50m
+    memory: 128Mi
+    limit: 384Mi

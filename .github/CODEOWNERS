@@ -1,0 +1,4 @@
+/deploy/gitops/portfolio/images.yaml @phanhoaithuabc
+/Jenkinsfile @phanhoaithuabc
+/ci/jenkins/ @phanhoaithuabc
+/deploy/helm/observability/ @phanhoaithuabc

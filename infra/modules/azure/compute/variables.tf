@@ -1,0 +1,9 @@
+variable "name" { type = string }
+variable "resource_group_name" { type = string }
+variable "location" { type = string }
+variable "network_interface_id" { type = string }
+variable "vm_size" { type = string }
+variable "disk_gb" { type = number }
+variable "ssh_public_key" { type = string }
+variable "cloud_init" { type = string }
+variable "tags" { type = map(string) }

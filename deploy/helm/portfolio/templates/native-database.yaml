@@ -1,0 +1,32 @@
+{{- if .Values.nativeDatabase.enabled }}
+{{- $address := required "Set nativeDatabase.address to the EC2 private IPv4 address" .Values.nativeDatabase.address }}
+{{- if not (regexMatch "^(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.)" $address) }}
+{{- fail "Native PostgreSQL must use a private address, never the public EC2 IP" }}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata: { name: postgres-native }
+spec:
+  ports: [{ name: postgres, port: {{ .Values.nativeDatabase.port }}, targetPort: {{ .Values.nativeDatabase.port }} }]
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: postgres-native
+  labels: { kubernetes.io/service-name: postgres-native, endpointslice.kubernetes.io/managed-by: site-platform }
+addressType: IPv4
+ports: [{ name: postgres, protocol: TCP, port: {{ .Values.nativeDatabase.port }} }]
+endpoints:
+  - addresses: [{{ $address | quote }}]
+    conditions: { ready: true }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: native-postgres-egress }
+spec:
+  podSelector: { matchLabels: { app: portfolio-api } }
+  policyTypes: [Egress]
+  egress:
+    - to: [{ ipBlock: { cidr: "{{ $address }}/32" } }]
+      ports: [{ port: {{ .Values.nativeDatabase.port }}, protocol: TCP }]
+{{- end }}

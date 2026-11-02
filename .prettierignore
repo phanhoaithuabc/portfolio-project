@@ -1,0 +1,9 @@
+node_modules
+dist
+data
+package-lock.json
+apps/portfolio/public
+deploy/helm/*/templates
+infra/**/*.tf
+infra/**/.terraform
+infra/**/.terraform.lock.hcl

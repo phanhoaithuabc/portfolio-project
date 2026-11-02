@@ -1,0 +1,77 @@
+{{- range $role := list "web" "api" }}
+{{- $settings := index $.Values $role }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: "portfolio-{{ $role }}", labels: { app.kubernetes.io/part-of: portfolio, team: portfolio } }
+spec:
+  replicas: {{ $.Values.replicas }}
+  revisionHistoryLimit: 2
+  strategy: { rollingUpdate: { maxSurge: 1, maxUnavailable: 0 } }
+  selector: { matchLabels: { app: "portfolio-{{ $role }}" } }
+  template:
+    metadata:
+      labels: { app: "portfolio-{{ $role }}", app.kubernetes.io/part-of: portfolio, team: portfolio, environment: {{ $.Values.environment }} }
+      {{- if eq $role "api" }}
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "4010", prometheus.io/path: /metrics }
+      {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: {{ $role }}
+          image: {{ index $.Values.images $role | quote }}
+          {{- if eq $role "api" }}
+          command: [node, --import, ./packages/observability/src/register.js, services/portfolio/src/index.js]
+          env:
+            - { name: NODE_ENV, value: production }
+            - { name: HOST, value: "0.0.0.0" }
+            - { name: SERVICE, value: portfolio-api }
+            - { name: PORTFOLIO_STORE, value: postgres }
+            - { name: PORTFOLIO_EXPECTED_DATABASE_HOST, value: "{{ if $.Values.nativeDatabase.enabled }}postgres-native.{{ $.Release.Namespace }}.svc.cluster.local{{ else }}postgres.{{ $.Values.dataNamespace }}.svc.cluster.local{{ end }}" }
+            - { name: PORTFOLIO_PUBLIC_ORIGIN, value: "https://{{ $.Values.ingress.host }}" }
+            - { name: PORTFOLIO_COOKIE_SECURE, value: "true" }
+            - { name: PORTFOLIO_TRUST_PROXY_HOPS, value: "2" }
+            - { name: PORTFOLIO_UPLOAD_DIR, value: /var/lib/portfolio/uploads }
+            {{- if $.Values.media.s3Bucket }}
+            - { name: PORTFOLIO_MEDIA_S3_BUCKET, value: {{ $.Values.media.s3Bucket | quote }} }
+            - { name: PORTFOLIO_MEDIA_S3_REGION, value: {{ required "media.s3Region is required when media.s3Bucket is set" $.Values.media.s3Region | quote }} }
+            - { name: PORTFOLIO_MEDIA_S3_PREFIX, value: {{ $.Values.media.s3Prefix | quote }} }
+            {{- if $.Values.media.s3Endpoint }}
+            - { name: PORTFOLIO_MEDIA_S3_ENDPOINT, value: {{ $.Values.media.s3Endpoint | quote }} }
+            {{- end }}
+            {{- end }}
+            - { name: OTEL_ENABLED, value: "true" }
+            - { name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, value: "http://otel-collector.observability.svc.cluster.local:4318/v1/traces" }
+          envFrom: [{ secretRef: { name: {{ $.Values.runtimeSecret }} } }]
+          {{- end }}
+          ports: [{ name: http, containerPort: {{ if eq $role "api" }}4010{{ else }}8080{{ end }} }]
+          resources:
+            requests: { cpu: {{ $settings.cpu }}, memory: {{ $settings.memory }} }
+            limits: { cpu: "1", memory: {{ $settings.memoryLimit }} }
+          securityContext: { readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          startupProbe: { httpGet: { path: /health, port: http }, periodSeconds: 5, failureThreshold: 30 }
+          readinessProbe: { httpGet: { path: /ready, port: http }, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 15, periodSeconds: 10 }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            {{- if eq $role "api" }}
+            - { name: uploads, mountPath: /var/lib/portfolio/uploads }
+            {{- end }}
+      volumes:
+        - { name: tmp, emptyDir: {} }
+        {{- if eq $role "api" }}
+        - { name: uploads, persistentVolumeClaim: { claimName: portfolio-media } }
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata: { name: "portfolio-{{ $role }}" }
+spec:
+  selector: { app: "portfolio-{{ $role }}" }
+  ports: [{ name: http, port: {{ if eq $role "api" }}4010{{ else }}8080{{ end }}, targetPort: http }]
+{{- end }}

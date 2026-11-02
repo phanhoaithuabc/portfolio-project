@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata: { name: portfolio, namespace: argocd }
+spec:
+  sourceRepos: [https://github.com/REPLACE_ME/portfolio.git]
+  destinations:
+    [{ namespace: portfolio, server: https://kubernetes.default.svc }]
+  namespaceResourceWhitelist:
+    - { group: discovery.k8s.io, kind: EndpointSlice }
+    - { group: "", kind: Service }
+    - { group: "", kind: PersistentVolumeClaim }
+    - { group: apps, kind: Deployment }
+    - { group: batch, kind: Job }
+    - { group: networking.k8s.io, kind: Ingress }
+    - { group: networking.k8s.io, kind: NetworkPolicy }
+    - { group: external-secrets.io, kind: ExternalSecret }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: { name: portfolio, namespace: argocd }
+spec:
+  project: portfolio
+  sources:
+    - repoURL: https://github.com/REPLACE_ME/portfolio.git
+      targetRevision: main
+      path: deploy/helm/portfolio
+      helm:
+        releaseName: portfolio
+        valueFiles:
+          [
+            $values/deploy/gitops/portfolio/values.yaml,
+            $values/deploy/gitops/portfolio/images.yaml,
+          ]
+    - repoURL: https://github.com/REPLACE_ME/portfolio.git
+      targetRevision: main
+      ref: values
+  destination: { namespace: portfolio, server: https://kubernetes.default.svc }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [PruneLast=true]

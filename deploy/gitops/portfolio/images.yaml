@@ -1,0 +1,4 @@
+images:
+  api: ghcr.io/phanhoaithuabc/portfolio-api:bootstrap
+  web: ghcr.io/phanhoaithuabc/portfolio-web:bootstrap
+  sourceTag: bootstrap

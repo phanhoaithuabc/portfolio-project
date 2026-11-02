@@ -1,0 +1,5 @@
+bucket       = "portfolio-devops-tfstate-752239062162-us-east-1"
+key          = "portfolio/us-east-1/lab/media.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true

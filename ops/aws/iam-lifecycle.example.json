@@ -1,0 +1,25 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeAddresses"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["ec2:StartInstances", "ec2:StopInstances"],
+      "Resource": "arn:aws:ec2:us-east-1:REPLACE_ACCOUNT:instance/REPLACE_INSTANCE",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "portfolio",
+          "ec2:ResourceTag/Environment": "lab"
+        }
+      }
+    }
+  ]
+}

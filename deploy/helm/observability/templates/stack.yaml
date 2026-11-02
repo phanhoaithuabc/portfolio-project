@@ -1,0 +1,142 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: prometheus }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: portfolio-prometheus }
+rules:
+  - { apiGroups: [""], resources: [pods, nodes], verbs: [get, list, watch] }
+  - { apiGroups: [""], resources: [nodes/proxy], verbs: [get] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: portfolio-prometheus }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: portfolio-prometheus }
+subjects: [{ kind: ServiceAccount, name: prometheus, namespace: {{ .Release.Namespace }} }]
+{{- range $name, $component := .Values.components }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: {{ $name }}-config }
+data:
+  config: |
+    {{- if has $name (list "prometheus" "otel-collector" "alertmanager") }}
+    {{- $.Files.Get (printf "files/%s.yaml" $name) | nindent 4 }}
+    {{- else }}
+    {}
+    {{- end }}
+  {{- if eq $name "prometheus" }}
+  alerts.yaml: |
+    {{- $.Files.Get "files/alerts.yaml" | nindent 4 }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata: { name: {{ $name }} }
+spec:
+  selector: { app: {{ $name }} }
+  ports:
+    - { name: http, port: {{ $component.port }}, targetPort: {{ $component.port }} }
+    {{- if eq $name "jaeger" }}
+    - { name: otlp, port: 4318, targetPort: 4318 }
+    {{- end }}
+{{- if $component.storage }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-data
+  annotations:
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ $.Values.storageClass }}
+  resources: { requests: { storage: {{ $component.storage }} } }
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: {{ $name }} }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: {{ $name }} } }
+  template:
+    metadata: { labels: { app: {{ $name }} } }
+    spec:
+      serviceAccountName: {{ if eq $name "prometheus" }}prometheus{{ else }}default{{ end }}
+      automountServiceAccountToken: {{ eq $name "prometheus" }}
+      securityContext: { fsGroup: 1000 }
+      containers:
+        - name: {{ $name }}
+          image: {{ $component.image }}
+          {{- with $component.args }}
+          args: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          ports: [{ name: http, containerPort: {{ $component.port }} }]
+          resources:
+            requests: { cpu: {{ $component.cpu }}, memory: {{ $component.memory }} }
+            limits: { cpu: "1", memory: {{ $component.limit }} }
+          readinessProbe: { tcpSocket: { port: http }, initialDelaySeconds: 5 }
+          {{- if eq $name "grafana" }}
+          env:
+            - { name: GF_SECURITY_ADMIN_PASSWORD, valueFrom: { secretKeyRef: { name: {{ $.Values.grafanaSecret }}, key: admin-password } } }
+            - { name: GF_USERS_ALLOW_SIGN_UP, value: "false" }
+            - { name: GF_ANALYTICS_REPORTING_ENABLED, value: "false" }
+          {{- else if eq $name "jaeger" }}
+          env: [{ name: COLLECTOR_OTLP_ENABLED, value: "true" }, { name: MEMORY_MAX_TRACES, value: "5000" }]
+          {{- end }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/config }
+            - { name: data, mountPath: /data }
+            {{- if eq $name "grafana" }}
+            - { name: data, mountPath: /var/lib/grafana }
+            - { name: grafana-provisioning, mountPath: /etc/grafana/provisioning/datasources }
+            - { name: dashboard-provider, mountPath: /etc/grafana/provisioning/dashboards }
+            - { name: dashboards, mountPath: /var/lib/grafana/dashboards }
+            {{- end }}
+      volumes:
+        - { name: config, configMap: { name: {{ $name }}-config } }
+        - name: data
+          {{- if $component.storage }}
+          persistentVolumeClaim: { claimName: {{ $name }}-data }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if eq $name "grafana" }}
+        - { name: grafana-provisioning, configMap: { name: grafana-datasources } }
+        - { name: dashboard-provider, configMap: { name: grafana-dashboard-provider } }
+        - { name: dashboards, configMap: { name: grafana-dashboards } }
+        {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: grafana-datasources }
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - { name: Prometheus, uid: prometheus, type: prometheus, access: proxy, url: "http://prometheus:9090", isDefault: true }
+      - { name: Jaeger, uid: jaeger, type: jaeger, access: proxy, url: "http://jaeger:16686" }
+      {{- if .Values.logs.enabled }}
+      - { name: Loki, uid: loki, type: loki, access: proxy, url: "http://loki:3100" }
+      {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: grafana-dashboard-provider }
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - { name: Portfolio, type: file, options: { path: /var/lib/grafana/dashboards } }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: grafana-dashboards }
+data:
+  overview.json: |
+    {{- .Files.Get "files/dashboard.json" | nindent 4 }}

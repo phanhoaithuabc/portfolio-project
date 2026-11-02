@@ -1,0 +1,9 @@
+ingress:
+  host: phanhoaithu.io.vn
+  tlsSecret: portfolio-tls
+replicas: 1
+environment: lab
+nativeDatabase:
+  enabled: true
+  address: 10.20.1.151
+  port: 5433

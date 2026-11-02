@@ -1,0 +1,40 @@
+#cloud-config
+package_update: true
+packages: [curl, git, unzip, ca-certificates]
+write_files:
+  - path: /etc/sysctl.d/90-portfolio.conf
+    content: |
+      vm.max_map_count=262144
+      fs.inotify.max_user_watches=524288
+  - path: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
+    content: |
+      apiVersion: helm.cattle.io/v1
+      kind: HelmChartConfig
+      metadata:
+        name: traefik
+        namespace: kube-system
+      spec:
+        valuesContent: |-
+          service:
+            spec:
+              externalTrafficPolicy: Local
+  - path: /opt/portfolio/bootstrap-node.sh
+    permissions: "0700"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      k3s_version="v1.34.3+k3s1"
+      k3s_installer_sha256="40b487f0d8ef4f5d1bf422e7bb6228cc7789c40ecc66c5ab067d396bbee9816e"
+      helm_version="v3.17.3"
+      helm_sha256="ee88b3c851ae6466a3de507f7be73fe94d54cbf2987cbaa3d1a3832ea331f2cd"
+      cd /opt/portfolio
+      curl -fsSL "https://raw.githubusercontent.com/k3s-io/k3s/${k3s_version/+/%2B}/install.sh" -o install-k3s.sh
+      echo "${k3s_installer_sha256}  install-k3s.sh" | sha256sum --check --strict
+      INSTALL_K3S_VERSION="$k3s_version" K3S_KUBECONFIG_MODE=600 sh install-k3s.sh server --secrets-encryption
+      curl -fsSL "https://get.helm.sh/helm-${helm_version}-linux-amd64.tar.gz" -o helm.tar.gz
+      echo "${helm_sha256}  helm.tar.gz" | sha256sum --check --strict
+      tar -xzf helm.tar.gz
+      install -m 0755 linux-amd64/helm /usr/local/bin/helm
+runcmd:
+  - [sysctl, --system]
+  - [bash, /opt/portfolio/bootstrap-node.sh]

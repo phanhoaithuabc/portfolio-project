@@ -1,0 +1,10 @@
+variable "name" { type = string }
+variable "project_name" { type = string }
+variable "machine_type" { type = string }
+variable "zone" { type = string }
+variable "subnet_id" { type = string }
+variable "public_ip" { type = string }
+variable "ssh_public_key" { type = string }
+variable "disk_gb" { type = number }
+variable "cloud_init" { type = string }
+variable "labels" { type = map(string) }
