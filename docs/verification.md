@@ -2,9 +2,9 @@
 
 The standalone project must install and run from its own root with no sibling imports, package links, Docker COPY sources, chart references, or documentation links outside the project.
 
-## Split Results
+## Scope
 
-The standalone suite passes 8 tests; 1 disposable-PostgreSQL integration is skipped without its test URL. TypeScript, production build, frontend lint, formatting and project-boundary checks pass. Charts lint/render and native/legacy database-profile validators pass with a temporary local Helm binary. HTTP smoke checks pass for the frontend, public API, project pages, sitemap and project stylesheet. The future Git repository is not initialized, and Argo repository URLs remain explicit placeholders. No live database migration, Docker image execution, Kubernetes rollout, cloud or registrar operation was performed.
+Validation uses disposable SQLite files and offline mocks; no external database or test URL is required. Local checks do not prove a live deployment. Argo repository URLs must be configured before rollout. No production data is automatically migrated by the code change.
 
 ## Local Gates
 
@@ -17,10 +17,10 @@ npm run format:check
 node scripts/validate-project.mjs
 ```
 
-Tests cover public project metadata/localization/sitemap, contact inbox privacy, sessions/CSRF, drafts and editor permissions, revision conflicts/restore, file persistence and upload/deletion safety. AWS operations tests are offline mocks, not cloud changes.
+Tests cover public project metadata/localization/sitemap, contact inbox privacy, sessions/CSRF, drafts and editor permissions, revision conflicts/restore, persistence after reopening SQLite, session expiry, migrations/checksums, atomic snapshot import and overwrite refusal, plus media storage/deletion safety. AWS operations tests are offline mocks, not cloud changes.
 
 ## Runtime Gates
 
-The PostgreSQL test is skipped unless `TEST_PORTFOLIO_DATABASE_URL` identifies a disposable database. Helm is required for `node scripts/validate-deployments.mjs`, `node ci/validate-database-hosts.mjs`, and `node ci/validate-native-databases.mjs`. Builds/tests do not prove a live cluster rollout, DNS/TLS, registry access, current image security or a successful backup restore.
+Run `npm run build:runtime` to validate production bundles. Helm is required for `node scripts/validate-deployments.mjs` and `node ci/validate-sqlite.mjs`. The SQLite deployment check verifies one API replica, Recreate updates, a retained persistent database volume, and matching API/init-container paths. Builds/tests do not prove a live cluster rollout, DNS/TLS, registry access, current image security or a successful off-node backup restore.
 
-Use the [deployment guide](deployment.md) before publishing. Replace the future repository placeholder; configure administrator credentials yourself. Real cloud resources and production data were not created, migrated or changed during the filesystem split.
+Use the [deployment guide](deployment.md) before publishing. Configure repository URLs and administrator credentials yourself. Follow [SQLite Storage](sqlite.md) for existing-data transfer and a restore drill; then verify the site, sign-in, contact inbox, uploads and persistence after an API restart.

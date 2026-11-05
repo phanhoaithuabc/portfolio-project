@@ -11,18 +11,15 @@ externalSecrets:
   storeName: aws-secretsmanager
   refreshInterval: 1h
   runtimeKey: ""
-dataNamespace: portfolio-data
 storageClass: local-path
+database:
+  storage: 2Gi
 media:
   storage: 2Gi
   s3Bucket: ""
   s3Region: ""
   s3Endpoint: ""
   s3Prefix: portfolio-media
-nativeDatabase:
-  enabled: false
-  address: ""
-  port: 5433
 ingress:
   enabled: true
   host: phanhoaithu.io.vn

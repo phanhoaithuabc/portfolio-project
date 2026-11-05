@@ -1,11 +1,11 @@
 CREATE TABLE IF NOT EXISTS portfolio_project_passwords (
-  project_id uuid PRIMARY KEY,
+  project_id text PRIMARY KEY,
   password_hash text NOT NULL,
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS portfolio_analytics_daily (
-  day date NOT NULL,
+  day text NOT NULL,
   page_key text NOT NULL,
   event_type text NOT NULL CHECK (event_type IN ('view', 'outbound', 'contact')),
   referrer_host text NOT NULL DEFAULT '',

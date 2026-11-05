@@ -3,7 +3,5 @@ ingress:
   tlsSecret: portfolio-tls
 replicas: 1
 environment: lab
-nativeDatabase:
-  enabled: true
-  address: 10.20.1.151
-  port: 5433
+database:
+  storage: 2Gi

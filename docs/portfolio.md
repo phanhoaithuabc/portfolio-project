@@ -2,11 +2,11 @@
 
 ## Standalone Project
 
-This project owns the portfolio frontend, API, database, media, tests, CI and deployment files. It does not import or deploy another application. Use [Architecture](architecture.md), [Deployment](deployment.md), [Native PostgreSQL](native-postgres.md) and [DNS/HTTPS](domain-pavietnam.md). All commands run from this project root.
+This project owns the portfolio frontend, API, database, media, tests, CI and deployment files. It does not import or deploy another application. Use [Architecture](architecture.md), [Deployment](deployment.md), [SQLite Storage](sqlite.md) and [DNS/HTTPS](domain-pavietnam.md). All commands run from this project root.
 
 ## Public Site and Admin
 
-The public page includes your introduction, project search/categories, featured work, case studies, technology list and a contact form. Visitors can switch between English and Vietnamese; untranslated text falls back to English. DailyPick is seeded as the first published project, with a screenshot of the running storefront. No invented employer, certification, years of experience, contact address or GitHub account is included. Starter biography/role copy is editable; review it before publishing. Published projects have direct `/projects/<slug>` pages with canonical/Open Graph metadata, and `/sitemap.xml` lists published project pages.
+The public page includes your introduction, project search/categories, featured work, case studies, technology list and a contact form. Visitors can switch between English and Vietnamese; untranslated text falls back to English. A Personal Portfolio case study is seeded as the first project. No invented employer, certification, years of experience, contact address or GitHub account is included. Starter biography/role copy is editable; review it before publishing. Published projects have direct `/projects/<slug>` pages with canonical/Open Graph metadata, and `/sitemap.xml` lists published project pages.
 
 `/admin` opens the private portfolio studio. You can edit your name, role, headline, introduction, biography, location, contact email, GitHub/LinkedIn/resume links, hero image and skills, with Vietnamese translations. Projects support title, category, year, slug, summary, legacy case-study text, cover image, live/repository URLs, technologies, order, featured status, draft/published status, localized copy, SEO title/description and image alt text. New ordered case-study blocks support rich text, images, galleries, YouTube/Vimeo embeds and outcome metrics; existing description-only projects continue to render until blocks are added. Project blocks and custom pages support Vietnamese headings/captions/text. Add/delete operations and all field edits are saved together through **Save changes**.
 
@@ -29,7 +29,7 @@ npm ci
 npm run portfolio:preview
 ```
 
-Open `http://127.0.0.1:5174/`. DailyPick remains independently available on its existing port, normally 5173. Portfolio API uses loopback port 4010. Vite selects another port if 5174 is occupied, but the admin's exact public origin must be configured to match the URL actually used.
+Open `http://127.0.0.1:5174/`. Portfolio API uses loopback port 4010. Vite selects another port if 5174 is occupied, but the admin's exact public origin must be configured to match the URL actually used. Normal development uses SQLite: configure your session secret, run `npm run portfolio:migrate`, then `npm run dev`. The preview command above explicitly selects JSON storage instead.
 
 Preview mode is explicit: it uses the ignored `data/portfolio.json` file and temporary in-memory sessions. It binds the API to loopback and refuses `NODE_ENV=production`. Restarts retain content, not sessions. This is not the Kubernetes data store and must not be scaled across processes. The session secret is generated afresh at startup if no preview secret is supplied. Admin sign-in is **disabled** until you configure your own password hash; there is no default password or authentication bypass.
 
@@ -75,103 +75,33 @@ PORTFOLIO_EDITOR_PASSWORD_HASH=YOUR_EDITOR_BCRYPT_HASH
 
 Restart the preview after configuration changes, then open `/admin`. Configure both editor variables or neither; editors can update and preview drafts, while publishing, media, inbox, import/export and revision restore remain owner-only. There is no public registration or password-reset email endpoint. Rotate hashes through your secret-management process. Rotate the session secret as well when existing sessions must be invalidated. Database session expiry is eight hours. A password change by itself does not revoke an already signed-in session.
 
-## PostgreSQL Runtime
+## SQLite Runtime
 
-This section is the **legacy pod-database path**, not the selected native EC2 setup. For native credentials, chart activation and migration, use [Native PostgreSQL](native-postgres.md). Do not apply the commands below to a fresh native installation.
-
-Use the dedicated PostgreSQL instance deployed from `deploy/helm/portfolio-db` in `portfolio-data`. Do not create the portfolio database on DailyPick's PostgreSQL instance. Prepare a distinct `portfolio-postgres` Secret in `portfolio-data` with `POSTGRES_USER=portfolio_bootstrap` and a unique `POSTGRES_PASSWORD`, using an ignored operator-managed file or secret manager. The image creates the initial `portfolio` database on its new PVC; do not use that bootstrap superuser as the application role.
+Normal runtime uses SQLite through Node.js 24's built-in `node:sqlite` module. Set `PORTFOLIO_DATABASE_FILE` (default `data/portfolio.sqlite`) and a stable session secret, then run:
 
 ```sh
-kubectl create namespace portfolio-data
-kubectl -n portfolio-data create secret generic portfolio-postgres --from-env-file=.env.portfolio-postgres
-helm upgrade --install portfolio-db deploy/helm/portfolio-db -n portfolio-data --wait --timeout 5m
-kubectl -n portfolio-data exec -it portfolio-postgres-0 -- psql -U portfolio_bootstrap -d portfolio
+npm run portfolio:migrate
+npm run dev
 ```
 
-On this dedicated instance, create the runtime role in a trusted operator terminal:
+Migrations create content, sessions, revisions, contacts, project password and analytics tables. Content is a JSON text document with an atomic revision. Immediate transactions preserve revision history and reject stale edits. Sessions persist across restarts and expire after eight hours; expired rows are pruned on session reads/writes. Migrations seed only a missing document and never overwrite edited content.
 
-```sql
-CREATE ROLE portfolio_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
-\password portfolio_app
-ALTER DATABASE portfolio OWNER TO portfolio_app;
-REVOKE CONNECT ON DATABASE portfolio FROM PUBLIC;
-GRANT CONNECT ON DATABASE portfolio TO portfolio_app;
-```
+There is no database connection URL, network service, database user or connection pool. Existing connection URL settings must be removed. Use [SQLite Storage](sqlite.md) for existing-data transfer, backup/restore and filesystem requirements.
 
-`\password` securely prompts in psql. URL-encode the password before constructing a connection URI. The Kubernetes URI must use `postgres.portfolio-data.svc.cluster.local:5432/portfolio`, not `postgres.data.svc.cluster.local`. The API and migration both enforce that expected hostname and reject a Secret pointing at the DailyPick host. `PORTFOLIO_EXPECTED_DATABASE_HOST` is set by the chart. Local development may use a separate PostgreSQL instance exposed on another loopback port, such as 5433; configure its URL and run `npm run portfolio:migrate` before `npm run portfolio:dev`. File preview mode remains an explicit development-only option.
+## Kubernetes Deployment
 
-| Application | PostgreSQL host                                  | Process                               | Persistent storage                  |
-| ----------- | ------------------------------------------------ | ------------------------------------- | ----------------------------------- |
-| DailyPick   | `postgres.data.svc.cluster.local:5432`           | `data/postgres-0`                     | DailyPick's existing PostgreSQL PVC |
-| Portfolio   | `postgres.portfolio-data.svc.cluster.local:5432` | `portfolio-data/portfolio-postgres-0` | New independent 5-GiB PVC           |
+1. Prepare k3s/Traefik and the `portfolio` namespace. Review [capacity](ec2-sizing.md) and reliable local persistent storage.
+2. Create `portfolio-runtime` with `PORTFOLIO_SESSION_SECRET`, `PORTFOLIO_ADMIN_USERNAME`, `PORTFOLIO_ADMIN_PASSWORD_HASH` and optional editor credentials, or configure External Secrets. Do not include an old database URL.
+3. Build/publish the API and web images and configure immutable image references under `deploy/gitops/portfolio`.
+4. Configure repository URLs in `deploy/argocd/portfolio.yaml`, review the diff, then apply it. The API's init container migrates its mounted database before startup.
+5. Configure [DNS/HTTPS](domain-pavietnam.md), then verify the public site, admin login, drafts, contact form, media, revision conflicts and persistence after restart.
 
-If the portfolio already has data in the old shared PostgreSQL instance, take an off-node backup, pause portfolio writers, restore its content/session tables into the dedicated instance, verify ownership and content revisions, then update `portfolio-runtime` and roll out. Do not delete the old database/volume until the restore has been verified. This change does not move or destroy live data automatically. If you mean physically different servers, use another VM or managed database instead; that is outside the one-EC2 design.
+The API always uses one replica and `Recreate`, with a retained 2-GiB `portfolio-database` PVC. This prevents overlapping API instances during updates and causes brief downtime. The separate media PVC is retained too. `replicas` changes only the web tier. No separate database namespace or server is deployed. Keep off-node backups and test restore before production use.
 
-Migrations create `portfolio_content` (one validated JSONB document plus an atomic revision), `portfolio_sessions`, `portfolio_content_versions`, `portfolio_contact_messages`, separate project password hashes, and daily analytics aggregates. Migration `003_private_projects_analytics.sql` adds the last two tables. They seed only a missing document and never overwrite an edited profile. Profile/projects/pages belong to one small authoring aggregate, so a single optimistic revision is simpler than cross-table partial saves. The sessions table is separate and periodically pruned. The API uses a three-connection pool shared with the session store.
+Production uses HTTPS and host-only, HttpOnly, SameSite Strict cookies. Unsafe admin requests require an exact origin and session CSRF token. The chart trusts two proxy hops (Traefik then Nginx); direct local development trusts none. Set `PORTFOLIO_TRUST_PROXY_HOPS` to the actual known count (0, 1 or 2) if topology changes. Never trust arbitrary forwarded headers on an exposed API port. Cloud firewall changes must be reviewed separately.
 
-Run `node ci/validate-database-hosts.mjs` with Helm installed to verify rendered hostnames, selectors, PVC separation and network boundaries. The portfolio pipeline now runs that check as well as chart linting. This proves configuration intent; after deployment, confirm that Service endpoints resolve to different PostgreSQL pods and that cross-namespace connections are denied.
+## Delivery and Operations
 
-## Same-Server Kubernetes Deployment
+The root Jenkinsfile runs tests, typechecking, build, frontend lint, formatting, Helm/Terraform validation, file-backed SQLite integration and security scans. Main builds publish digest-pinned images, sign/attest and verify artifacts, then open a reviewed GitOps promotion PR. See [Deployment](deployment.md) for controller/agent setup and credential IDs. Nothing is committed, pushed or deployed by a local validation run.
 
-1. Keep the existing Terraform VM/k3s platform. Check available CPU/memory/disk before adding the portfolio. The web/API request 50m CPU and 160 MiB; the separate PostgreSQL adds 100m CPU, 256 MiB and a 5-GiB PVC. Actual use and build peaks are higher. See [EC2 Sizing and Software](ec2-sizing.md).
-2. Create the `portfolio` application namespace and the `portfolio-data` database namespace. Install the dedicated PostgreSQL chart and create its runtime role as above. Do not label `portfolio` as allowed to access the DailyPick data platform; the separate database policy allows only `portfolio-api` pods from `portfolio`. If an older deployment added `dailypick.io/application=true` to `portfolio`, remove that label to revoke the old shared-data access.
-3. Create a `portfolio-runtime` Secret in `portfolio` with `PORTFOLIO_DATABASE_URL`, `PORTFOLIO_SESSION_SECRET`, `PORTFOLIO_ADMIN_USERNAME` and `PORTFOLIO_ADMIN_PASSWORD_HASH`; optionally add both editor variables. Use an ignored local env file or a secret manager, never committed values. The URI host is `postgres.portfolio-data.svc.cluster.local:5432/portfolio`.
-4. Build/publish the two portfolio images. Set the registry paths/tag in `deploy/gitops/portfolio/images.yaml`. Configure an image-pull Secret if the registry is private.
-5. Configure your Git repository URLs in `deploy/argocd/portfolio.yaml`. This contains a separate, namespace-restricted AppProject and Application. Apply it only after prerequisites are ready. Argo's PreSync job runs the portfolio migration before rollout.
-6. Follow [P.A Vietnam DNS / HTTPS](domain-pavietnam.md) to create the `portfolio-tls` certificate for `phanhoaithu.io.vn`. DailyPick's `dailypick-tls` Secret must cover `dailypick.phanhoaithu.io.vn` in its own namespace. Certificate Secrets are namespaced; one Secret cannot be referenced across namespaces.
-7. Point both DNS A records to the VM's public IP. Configure AAAA only if the server/firewall actually supports IPv6. Avoid wildcard ingress rules that accidentally route unrelated hosts. Root portfolio and DailyPick ingress hostnames do not conflict.
-
-```sh
-kubectl create namespace portfolio
-# Remove an old shared-data access label if present:
-kubectl label namespace portfolio dailypick.io/application- --overwrite
-# Create the Secret from an ignored, operator-managed env file:
-kubectl -n portfolio create secret generic portfolio-runtime --from-env-file=.env.portfolio.production
-kubectl apply -f deploy/argocd/portfolio.yaml
-```
-
-`.env.portfolio.production` must contain production database/credential values, not local preview settings. `NODE_ENV=production`, PostgreSQL mode, HTTPS origin and secure cookies are enforced by the chart. Administrator cookies are host-only, HttpOnly and SameSite Strict; they are not shared with the DailyPick subdomain. Every unsafe admin request also needs an exact-origin match and session CSRF token. Login regenerates the session and is rate-limited; changing TLS/origin values incorrectly fails closed.
-
-The cloud firewall still defaults web traffic to the trusted administrator CIDR. Opening 80/443 to the Internet affects both hostnames on that VM. Review DailyPick's test-payment/demo security before doing so, and add a per-host allowlist/authentication policy if DailyPick must stay private. No firewall or DNS change is applied by adding the portfolio files.
-
-The chart trusts exactly two proxy hops (Traefik then Nginx) for secure cookies and client-IP login limits. Direct local preview trusts none. If you change that network topology, set `PORTFOLIO_TRUST_PROXY_HOPS` to the actual known count (0, 1, or 2), keep ingress forwarded-header trust restricted, and review the NetworkPolicy. Do not trust arbitrary proxy headers on an externally reachable API port.
-
-## Delivery Pipeline
-
-Bootstrap the zero-executor controller (`sudo bash scripts/bootstrap-jenkins.sh --apply`, port `127.0.0.1:8082`) and the unprivileged rootless Podman agent (`ci/jenkins/bootstrap-rootless-agent.sh --apply`, label `portfolio-rootless-builder`). Configure `IMAGE_PREFIX`, `portfolio-registry-push`, `gitops-push`, `cosign-signing-key`, `cosign-key-password` and `cosign-public-key` in Jenkins. Every build runs typechecking, unit tests, `format:check`, Helm/Terraform validation, multi-stage test/runtime image builds, disposable PostgreSQL integration against the `--target test` image, and strict `npm audit`/Trivy gates without `--ignore-unfixed`. Only builds on `main` push images, resolve immutable manifest digests, attach and verify Cosign signatures plus CycloneDX SBOM and SLSA provenance attestations, and open a reviewed `automation/portfolio-*` PR updating `deploy/gitops/portfolio/images.yaml` (protected by `.github/CODEOWNERS`).
-
-Argo deploys the portfolio independently of DailyPick. No automatic commit, push or deployment was performed while building this feature.
-
-## Source Reference
-
-| Path                                                      | Responsibility                                                                                               |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `apps/portfolio/src/public/PublicSite.tsx`                | Public identity, project filtering, case studies, about and contact sections                                 |
-| `apps/portfolio/src/admin/AdminPage.tsx`                  | Login, profile/project authoring, draft/publish/delete controls and save/conflict states                     |
-| `apps/portfolio/src/admin/Fields.tsx`                     | Reusable labeled text/textarea fields                                                                        |
-| `apps/portfolio/src/components/Modal.tsx`                 | Accessible case-study/delete dialogs                                                                         |
-| `apps/portfolio/src/lib/api.ts`                           | Same-origin API client, CSRF headers, no-cache reads and typed errors                                        |
-| `apps/portfolio/src/styles.css`, `src/admin/admin.css`    | Public/editor responsive design                                                                              |
-| `apps/portfolio/public/dailypick-preview.png`             | Generated screenshot of the actual DailyPick storefront                                                      |
-| `apps/portfolio/Dockerfile`, `nginx.conf`                 | Unprivileged web image, HTTPS forwarding, security policy and portfolio API proxy                            |
-| `services/portfolio/src/app.ts`                           | Public read boundary and protected, validated administrator HTTP routes                                      |
-| `services/portfolio/src/content.ts`                       | Initial editable content and repository contract                                                             |
-| `services/portfolio/src/postgres.ts`                      | Own database pool and revision-checked JSONB persistence                                                     |
-| `services/portfolio/src/database-config.ts`               | Rejects an unexpected database host before opening a pool                                                    |
-| `services/portfolio/src/file-repository.ts`               | Explicit single-process local preview persistence, never production fallback                                 |
-| `services/portfolio/src/index.ts`                         | Runtime mode, sessions, secure cookies and process lifecycle                                                 |
-| `services/portfolio/src/migrate.ts`, `migrations/`        | Ordered, repeatable content, session, revision-history and contact-inbox schema migrations                   |
-| `services/portfolio/src/hash-password.ts`                 | Operator-only bcrypt hashing without CLI password arguments                                                  |
-| `packages/contracts/src/portfolio.ts`                     | Shared validated content/profile/project contracts                                                           |
-| `deploy/helm/portfolio`                                   | Separate deployments, services, ingress, migration hook and network policies                                 |
-| `deploy/gitops/portfolio`, `deploy/argocd/portfolio.yaml` | Independent artifact promotion and namespace-restricted reconciliation                                       |
-| `Jenkinsfile`, `ci/update-portfolio-images.mjs`           | Portfolio-specific build/test/scan/push/promotion workflow                                                   |
-| `tests/portfolio*.ts`                                     | Authentication, CSRF, draft privacy, revision conflicts, file durability and optional PostgreSQL integration |
-
-## Operations and Verification
-
-The portfolio API exposes `/health`, database-dependent `/ready` and `/metrics`. Prometheus discovery now includes the `portfolio` namespace, and the API can export traces to the existing collector. The current FinOps utilization collector's application namespace selector still targets DailyPick; extend its selector/budgets before claiming portfolio-specific chargeback. Do not assume namespace isolation or additional pods provide host high availability.
-
-Back up the portfolio database and `portfolio-media` PVC separately, alongside the existing platform backup plan. Store session secrets/password hashes in an access-controlled secret manager. Use off-node backup storage and test restoring content, uploaded media and credentials. An application image rollback does not roll back user-edited database content. Export or restore content intentionally; migrations preserve it.
-
-Local validation includes API authentication/CSRF/revision tests, preview durability, and a browser workflow against a disposable test backend: sign in, edit profile, add a draft, publish, confirm public visibility and sign out. The test backend was shut down and did not alter real preview content. PostgreSQL integration is opt-in through `TEST_PORTFOLIO_DATABASE_URL` and is skipped without it. Docker image startup, Jenkins/Argo execution, live DNS/TLS and database deployment remain to be verified with your infrastructure. No real administrator password was set automatically.
+The API exposes `/health`, database-dependent `/ready` and `/metrics`. Monitor SQLite disk/WAL growth, backup success and media capacity as well as request metrics. Single-host storage is not high availability. Use [Verification](verification.md), [SQLite Storage](sqlite.md), [Incident Runbook](runbooks/incidents.md) and the generated [File Reference](file-reference.md) for focused checks and source ownership.

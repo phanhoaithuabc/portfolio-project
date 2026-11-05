@@ -127,6 +127,6 @@ if (action === "stop") {
   if (!instance.PublicIpAddress)
     throw new Error("EC2 has no public IPv4 address");
   console.log(
-    `${elasticIp ? "Elastic IP remains stable." : `Update the A records manually to ${instance.PublicIpAddress}.`} Check native PostgreSQL, k3s pods and HTTPS before declaring the site ready.`,
+    `${elasticIp ? "Elastic IP remains stable." : `Update the A records manually to ${instance.PublicIpAddress}.`} Check SQLite storage, k3s pods and HTTPS before declaring the site ready.`,
   );
 }

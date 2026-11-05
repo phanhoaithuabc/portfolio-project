@@ -1,6 +1,0 @@
-apiVersion: v2
-name: portfolio-db
-description: Dedicated PostgreSQL instance and storage for the personal portfolio
-type: application
-version: 0.1.0
-appVersion: "17"

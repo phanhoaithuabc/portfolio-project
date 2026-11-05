@@ -1,17 +1,44 @@
 name: personal-portfolio
 services:
-  postgres:
-    image: postgres:17-alpine
+  api:
+    build: { context: ., target: runtime }
+    networks:
+      default:
+        aliases: [portfolio-api]
+    command:
+      [
+        "--import",
+        "./packages/observability/src/register.js",
+        "--input-type=module",
+        "-e",
+        "await import('./services/portfolio/src/migrate.js'); await import('./services/portfolio/src/index.js');",
+      ]
     environment:
-      POSTGRES_DB: portfolio
-      POSTGRES_USER: portfolio_app
-      POSTGRES_PASSWORD: ${PORTFOLIO_POSTGRES_PASSWORD:?Set a unique local PORTFOLIO_POSTGRES_PASSWORD}
-    ports: ["127.0.0.1:5433:5432"]
-    volumes: ["portfolio-postgres:/var/lib/postgresql/data"]
+      PORTFOLIO_STORE: sqlite
+      NODE_ENV: development
+      PORTFOLIO_PUBLIC_ORIGIN: http://127.0.0.1:5174
+      PORTFOLIO_SESSION_SECRET: ${PORTFOLIO_SESSION_SECRET:?Set a unique PORTFOLIO_SESSION_SECRET}
+      PORTFOLIO_ADMIN_USERNAME: ${PORTFOLIO_ADMIN_USERNAME:-admin}
+      PORTFOLIO_ADMIN_PASSWORD_HASH: ${PORTFOLIO_ADMIN_PASSWORD_HASH:-}
+    ports: ["127.0.0.1:4010:4010"]
+    volumes:
+      - portfolio-database:/var/lib/portfolio/database
+      - portfolio-media:/var/lib/portfolio/uploads
     healthcheck:
-      test: [CMD-SHELL, "pg_isready -U portfolio_app -d portfolio"]
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:4010/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 5s
       timeout: 3s
       retries: 20
+  web:
+    build: { context: ., dockerfile: apps/portfolio/Dockerfile }
+    depends_on: { api: { condition: service_healthy } }
+    ports: ["127.0.0.1:5174:8080"]
 volumes:
-  portfolio-postgres: {}
+  portfolio-database: {}
+  portfolio-media: {}

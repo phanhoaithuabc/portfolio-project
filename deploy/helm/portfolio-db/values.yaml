@@ -1,9 +1,0 @@
-image: postgres:17-alpine
-database: portfolio
-credentialsSecret: portfolio-postgres
-applicationNamespace: portfolio
-storageClass: local-path
-storage: 5Gi
-resources:
-  requests: { cpu: 100m, memory: 256Mi }
-  limits: { cpu: "1", memory: 1Gi }

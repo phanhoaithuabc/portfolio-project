@@ -5,9 +5,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata: { name: "portfolio-{{ $role }}", labels: { app.kubernetes.io/part-of: portfolio, team: portfolio } }
 spec:
-  replicas: {{ $.Values.replicas }}
+  replicas: {{ if eq $role "api" }}1{{ else }}{{ $.Values.replicas }}{{ end }}
   revisionHistoryLimit: 2
+  {{- if eq $role "api" }}
+  strategy: { type: Recreate }
+  {{- else }}
   strategy: { rollingUpdate: { maxSurge: 1, maxUnavailable: 0 } }
+  {{- end }}
   selector: { matchLabels: { app: "portfolio-{{ $role }}" } }
   template:
     metadata:
@@ -22,6 +26,18 @@ spec:
       imagePullSecrets: {{ toYaml . | nindent 8 }}
       {{- end }}
       securityContext: { runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, seccompProfile: { type: RuntimeDefault } }
+      {{- if eq $role "api" }}
+      initContainers:
+        - name: migrate
+          image: {{ $.Values.images.api | quote }}
+          command: [node, services/portfolio/src/migrate.js]
+          env:
+            - { name: PORTFOLIO_DATABASE_FILE, value: /var/lib/portfolio/database/portfolio.sqlite }
+          resources: { requests: { cpu: 25m, memory: 64Mi }, limits: { cpu: "1", memory: 256Mi } }
+          securityContext: { readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: database, mountPath: /var/lib/portfolio/database }
+      {{- end }}
       containers:
         - name: {{ $role }}
           image: {{ index $.Values.images $role | quote }}
@@ -31,8 +47,8 @@ spec:
             - { name: NODE_ENV, value: production }
             - { name: HOST, value: "0.0.0.0" }
             - { name: SERVICE, value: portfolio-api }
-            - { name: PORTFOLIO_STORE, value: postgres }
-            - { name: PORTFOLIO_EXPECTED_DATABASE_HOST, value: "{{ if $.Values.nativeDatabase.enabled }}postgres-native.{{ $.Release.Namespace }}.svc.cluster.local{{ else }}postgres.{{ $.Values.dataNamespace }}.svc.cluster.local{{ end }}" }
+            - { name: PORTFOLIO_STORE, value: sqlite }
+            - { name: PORTFOLIO_DATABASE_FILE, value: /var/lib/portfolio/database/portfolio.sqlite }
             - { name: PORTFOLIO_PUBLIC_ORIGIN, value: "https://{{ $.Values.ingress.host }}" }
             - { name: PORTFOLIO_COOKIE_SECURE, value: "true" }
             - { name: PORTFOLIO_TRUST_PROXY_HOPS, value: "2" }
@@ -61,11 +77,13 @@ spec:
             - { name: tmp, mountPath: /tmp }
             {{- if eq $role "api" }}
             - { name: uploads, mountPath: /var/lib/portfolio/uploads }
+            - { name: database, mountPath: /var/lib/portfolio/database }
             {{- end }}
       volumes:
         - { name: tmp, emptyDir: {} }
         {{- if eq $role "api" }}
         - { name: uploads, persistentVolumeClaim: { claimName: portfolio-media } }
+        - { name: database, persistentVolumeClaim: { claimName: portfolio-database } }
         {{- end }}
 ---
 apiVersion: v1

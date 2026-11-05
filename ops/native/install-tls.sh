@@ -8,7 +8,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --apply) apply=true; shift ;;
     --email) email="${2:?Email required}"; shift 2 ;;
-    --namespace|--dailypick-namespace) namespace="${2:?Namespace required}"; shift 2 ;;
+    --namespace) namespace="${2:?Namespace required}"; shift 2 ;;
     --cert-manager-version) cert_manager_version="${2:?Version required}"; shift 2 ;;
     *) echo "Usage: install-tls.sh --email you@example.com [--namespace portfolio] [--apply]" >&2; exit 1 ;;
   esac

@@ -1,5 +1,7 @@
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
+import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
+import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 if (process.env.OTEL_ENABLED === "true") {
@@ -10,9 +12,9 @@ if (process.env.OTEL_ENABLED === "true") {
     }),
     traceExporter: new OTLPTraceExporter(),
     instrumentations: [
-      getNodeAutoInstrumentations({
-        "@opentelemetry/instrumentation-fs": { enabled: false },
-      }),
+      new HttpInstrumentation(),
+      new ExpressInstrumentation(),
+      new UndiciInstrumentation(),
     ],
   });
   sdk.start();

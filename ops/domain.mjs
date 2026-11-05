@@ -4,7 +4,7 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
-export function dnsRecords(ip, includeDailyPick = false) {
+export function dnsRecords(ip) {
   if (isIP(ip) !== 4) throw new Error("Supply the EC2 public IPv4 address");
   const records = [
     { host: "@", type: "A", value: ip },
@@ -13,8 +13,8 @@ export function dnsRecords(ip, includeDailyPick = false) {
   return records;
 }
 
-export async function verifyDomain(ip, includeDailyPick = false) {
-  const records = dnsRecords(ip, includeDailyPick);
+export async function verifyDomain(ip) {
+  const records = dnsRecords(ip);
   const hosts = ["phanhoaithu.io.vn"];
   const resolved = await Promise.all(
     hosts.map(async (host) => ({ host, addresses: await resolve4(host) })),
@@ -34,14 +34,13 @@ async function main() {
     allowPositionals: true,
     options: {
       ip: { type: "string" },
-      "include-dailypick": { type: "boolean", default: false },
       https: { type: "boolean", default: false },
     },
   });
   const [action] = positionals;
   if (!["plan", "verify"].includes(action) || !values.ip)
     throw new Error(
-      "Usage: npm run ops:domain -- plan|verify --ip PUBLIC_IPV4 [--include-dailypick] [--https]",
+      "Usage: npm run ops:domain -- plan|verify --ip PUBLIC_IPV4 [--https]",
     );
   if (action === "plan") {
     console.log(
@@ -49,7 +48,7 @@ async function main() {
         {
           provider: "P.A Vietnam DNS management",
           note: "Create these records manually. This command does not log in to or modify the registrar account.",
-          records: dnsRecords(values.ip, values["include-dailypick"]),
+          records: dnsRecords(values.ip),
         },
         null,
         2,
@@ -57,7 +56,7 @@ async function main() {
     );
     return;
   }
-  const result = await verifyDomain(values.ip, values["include-dailypick"]);
+  const result = await verifyDomain(values.ip);
   if (values.https) {
     result.https = await Promise.all(
       result.resolved.map(async ({ host }) => {

@@ -98,14 +98,16 @@ test("portfolio admin authentication, CSRF, draft filtering and revision conflic
     return response;
   };
   try {
-    const projectPage = await (await call("/projects/dailypick")).text();
+    const projectPage = await (
+      await call("/projects/personal-portfolio")
+    ).text();
     assert.match(
       projectPage,
-      /<title>DailyPick \| Nền tảng thương mại điện tử hướng sự kiện<\/title>/,
+      /<title>Personal Portfolio \| DevOps &amp; Cloud Engineering<\/title>/,
     );
     assert.match(
       projectPage,
-      /property="og:url" content="http:\/\/localhost:5174\/projects\/dailypick"/,
+      /property="og:url" content="http:\/\/localhost:5174\/projects\/personal-portfolio"/,
     );
     const customPage = await (await call("/pages/about-the-work")).text();
     assert.match(customPage, /<h2>The approach<\/h2>/);
@@ -113,7 +115,7 @@ test("portfolio admin authentication, CSRF, draft filtering and revision conflic
     assert.equal((await call("/pages/not-published")).status, 404);
     const localized = await (await call("/api/portfolio?lang=vi")).json();
     assert.equal(localized.profile.role, "Kỹ sư DevOps & Cloud");
-    assert.equal(localized.projects[0].title, "DailyPick");
+    assert.equal(localized.projects[0].title, "Personal Portfolio");
     assert.equal(localized.pages[0].title, "About the work");
     assert.deepEqual(localized.projectLayout, "editorial");
     assert.equal(
@@ -124,7 +126,7 @@ test("portfolio admin authentication, CSRF, draft filtering and revision conflic
       false,
     );
     const sitemap = await (await call("/sitemap.xml")).text();
-    assert.match(sitemap, /\/projects\/dailypick/);
+    assert.match(sitemap, /\/projects\/personal-portfolio/);
     assert.match(sitemap, /\/pages\/about-the-work/);
     assert.doesNotMatch(sitemap, /private-case-study|unlisted-case-study/);
     const privateGate = await call("/projects/private-case-study");

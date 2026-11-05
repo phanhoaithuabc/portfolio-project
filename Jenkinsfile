@@ -17,7 +17,6 @@ pipeline {
           env.API_IMAGE = "${env.REGISTRY}/${env.IMAGE_PREFIX}/portfolio-api:${env.IMAGE_TAG}"
           env.WEB_IMAGE = "${env.REGISTRY}/${env.IMAGE_PREFIX}/portfolio-web:${env.IMAGE_TAG}"
           env.API_TEST_IMAGE = "localhost/portfolio-api-test:${env.BUILD_NUMBER}"
-          env.CI_NETWORK = "portfolio-ci-${env.BUILD_NUMBER}"
         }
       }
     }
@@ -36,8 +35,7 @@ pipeline {
         stage('Deployment validation') {
           steps {
             sh 'node scripts/validate-deployments.mjs'
-            sh 'node ci/validate-database-hosts.mjs'
-            sh 'node ci/validate-native-databases.mjs'
+            sh 'node ci/validate-sqlite.mjs'
             sh 'for root in infra/aws infra/aws-media infra/azure infra/gcp infra/modules; do terraform fmt -check -recursive "$root"; done'
             sh 'for root in aws aws-media azure gcp; do terraform -chdir=infra/$root init -backend=false -input=false && terraform -chdir=infra/$root validate; done'
           }
@@ -51,10 +49,7 @@ pipeline {
         }
         stage('Database integration') {
           steps {
-            sh 'docker network create "$CI_NETWORK"'
-            sh 'docker run -d --name "$CI_NETWORK" --network "$CI_NETWORK" --network-alias postgres -e POSTGRES_DB=portfolio -e POSTGRES_USER=portfolio -e POSTGRES_PASSWORD=ci-only-password postgres:17-alpine'
-            timeout(time: 2, unit: 'MINUTES') { waitUntil { script { return sh(script: 'docker exec "$CI_NETWORK" pg_isready -U portfolio', returnStatus: true) == 0 } } }
-            sh 'docker run --rm --network "$CI_NETWORK" -e TEST_PORTFOLIO_DATABASE_URL=postgresql://portfolio:ci-only-password@postgres:5432/portfolio "$API_TEST_IMAGE"'
+            sh 'docker run --rm "$API_TEST_IMAGE" node --import tsx --test tests/portfolio-sqlite.test.ts tests/portfolio-migrations.test.ts'
           }
         }
         stage('Security gates') {
@@ -153,8 +148,6 @@ pipeline {
   }
   post {
     always {
-      sh 'docker rm -f "$CI_NETWORK" >/dev/null 2>&1 || true'
-      sh 'docker network rm "$CI_NETWORK" >/dev/null 2>&1 || true'
       sh 'docker image rm "$API_TEST_IMAGE" >/dev/null 2>&1 || true'
     }
   }

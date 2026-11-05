@@ -21,7 +21,8 @@ FROM source AS build
 RUN npm run build:runtime && npm prune --omit=dev
 
 FROM base AS runtime
-ENV NODE_ENV=production HOST=0.0.0.0
+ENV NODE_ENV=production HOST=0.0.0.0 PORTFOLIO_DATABASE_FILE=/var/lib/portfolio/database/portfolio.sqlite PORTFOLIO_UPLOAD_DIR=/var/lib/portfolio/uploads
+RUN mkdir -p /var/lib/portfolio/database /var/lib/portfolio/uploads && chown -R node:node /var/lib/portfolio
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist/ ./

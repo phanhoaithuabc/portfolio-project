@@ -135,11 +135,14 @@ test("pipeline publishes only from main through signed, reviewed promotion", asy
     "utf8",
   );
   assert.doesNotMatch(bootstrap, /docker\.sock/);
-  for (const template of ["workloads.yaml", "migration.yaml"]) {
-    const source = await readFile(
-      path.join(root, "deploy/helm/portfolio/templates", template),
-      "utf8",
-    );
-    assert.doesNotMatch(source, /Values\.images\.tag/);
-  }
+  const workloads = await readFile(
+    path.join(root, "deploy/helm/portfolio/templates/workloads.yaml"),
+    "utf8",
+  );
+  assert.doesNotMatch(workloads, /Values\.images\.tag/);
+  assert.match(workloads, /initContainers:[\s\S]*name: migrate/);
+  assert.match(
+    workloads,
+    /command: \[node, services\/portfolio\/src\/migrate\.js\]/,
+  );
 });

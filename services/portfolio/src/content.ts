@@ -32,7 +32,7 @@ export const initialContent: PortfolioContent = {
       "Terraform",
       "Jenkins",
       "Argo CD",
-      "PostgreSQL",
+      "SQLite",
       "Kafka",
       "Elasticsearch",
       "OpenTelemetry",
@@ -62,23 +62,24 @@ export const initialContent: PortfolioContent = {
   projects: [
     {
       id: "82608e97-c5a3-4f9a-9b20-38926ce11a01",
-      slug: "dailypick",
-      title: "DailyPick",
-      category: "Full-stack & Cloud Platform",
+      slug: "personal-portfolio",
+      title: "Personal Portfolio",
+      category: "Full-stack & Cloud Engineering",
       summary:
-        "An everyday marketplace, engineered beyond the storefront. Microservices, event-driven workflows, and a GitOps delivery platform on one server.",
+        "A bilingual portfolio and private content studio, with durable SQLite storage and a GitOps delivery workflow.",
       description:
-        "DailyPick brings together a React storefront and independently deployed backend services. PostgreSQL and a transactional outbox coordinate order events, while Kafka handles asynchronous fulfillment work.\n\nThe platform includes Elasticsearch product search, Stripe test payments, multilingual shopping, and multiple display currencies. Helm, Argo CD, and Jenkins provide a repeatable delivery workflow, with Terraform configurations for AWS, Azure, and GCP.\n\nObservability and cost attribution are part of the design: OpenTelemetry traces, Prometheus metrics, Grafana dashboards, and guarded FinOps recommendations. The single-server deployment is a cost-conscious learning environment, not a claim of high availability.",
-      coverImage: "/dailypick-preview.png",
-      liveUrl: "https://dailypick.phanhoaithu.io.vn",
+        "This portfolio pairs a React frontend with an Express content API. SQLite stores published content, revision history, contact messages, aggregate analytics, and administrator sessions.\n\nThe private studio supports drafts, translations, custom pages, project access controls, and media uploads. Revision checks protect against conflicting edits.\n\nJenkins builds and validates the application, while Helm and Argo CD manage delivery. A single API instance uses persistent local storage; this is a single-host design, not a high-availability deployment.",
+      coverImage:
+        "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1600&q=85",
+      liveUrl: "https://phanhoaithu.io.vn",
       repositoryUrl: "",
       tags: [
         "React",
         "TypeScript",
         "Kubernetes",
         "Terraform",
-        "Kafka",
-        "PostgreSQL",
+        "SQLite",
+        "Express",
         "Argo CD",
         "OpenTelemetry",
       ],
@@ -86,18 +87,19 @@ export const initialContent: PortfolioContent = {
       published: true,
       featured: true,
       sortOrder: 0,
-      seoTitle: "DailyPick | Nền tảng thương mại điện tử hướng sự kiện",
+      seoTitle: "Personal Portfolio | DevOps & Cloud Engineering",
       seoDescription:
-        "Khám phá cách DailyPick kết hợp storefront, PostgreSQL, Kafka và GitOps trong một nền tảng cloud-native.",
-      ogImage: "/dailypick-preview.png",
-      coverImageAlt: "Ảnh chụp giao diện cửa hàng DailyPick",
+        "A bilingual portfolio with a private content studio, SQLite persistence, and automated delivery.",
+      ogImage:
+        "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1600&q=85",
+      coverImageAlt: "Server racks representing the portfolio infrastructure",
       translations: {
         vi: {
-          category: "Full-stack & nền tảng Cloud",
+          category: "Full-stack & kỹ thuật Cloud",
           summary:
-            "Một marketplace được xây dựng như một hệ thống hoàn chỉnh: microservice, xử lý sự kiện và nền tảng GitOps trên một máy chủ.",
+            "Portfolio song ngữ và trang quản trị nội dung riêng, sử dụng SQLite và quy trình triển khai GitOps.",
           description:
-            "DailyPick kết hợp storefront React với các backend service triển khai độc lập. PostgreSQL và transactional outbox điều phối sự kiện đơn hàng, còn Kafka xử lý fulfillment bất đồng bộ.\n\nNền tảng tích hợp tìm kiếm Elasticsearch, thanh toán Stripe test, trải nghiệm đa ngôn ngữ và nhiều đơn vị tiền tệ hiển thị. Helm, Argo CD và Jenkins tạo quy trình triển khai có thể lặp lại; Terraform cung cấp cấu hình cho AWS, Azure và GCP.\n\nOpenTelemetry, Prometheus, Grafana và các đề xuất FinOps có kiểm soát hỗ trợ quan sát hệ thống và phân bổ chi phí. Mô hình một máy chủ phục vụ học tập và tối ưu chi phí, không phải cam kết high availability.",
+            "Portfolio kết hợp giao diện React với API Express. SQLite lưu nội dung, lịch sử phiên bản, tin nhắn liên hệ, thống kê tổng hợp và phiên đăng nhập.\n\nTrang quản trị hỗ trợ bản nháp, bản dịch, trang tùy chỉnh và tải ảnh. Kiểm tra phiên bản giúp tránh ghi đè khi chỉnh sửa đồng thời.\n\nJenkins kiểm thử và build ứng dụng; Helm và Argo CD quản lý triển khai. Một API sử dụng ổ đĩa bền vững trên một máy chủ, không phải mô hình high availability.",
         },
       },
     },

@@ -1,61 +1,54 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
+import type { DatabaseSync } from "node:sqlite";
 
-interface MigrationClient {
-  query(
-    text: string,
-    values?: unknown[],
-  ): Promise<{ rows: Record<string, unknown>[] }>;
-}
-
-const lockKey = 14873210;
-
-export async function applyMigrations(client: MigrationClient, directory: URL) {
-  await client.query("SELECT pg_advisory_lock($1)", [lockKey]);
+export async function applyMigrations(database: DatabaseSync, directory: URL) {
+  const migrations = await Promise.all(
+    (await readdir(directory))
+      .filter((name) => /^\d+_.+\.sql$/.test(name))
+      .sort()
+      .map(async (version) => {
+        const sql = await readFile(new URL(version, directory), "utf8");
+        return {
+          version,
+          sql,
+          checksum: createHash("sha256")
+            .update(sql.replace(/\r\n/g, "\n"))
+            .digest("hex"),
+        };
+      }),
+  );
+  database.exec("BEGIN IMMEDIATE");
   try {
-    await client.query(
-      "CREATE TABLE IF NOT EXISTS portfolio_schema_migrations (version text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())",
+    database.exec(
+      "CREATE TABLE IF NOT EXISTS portfolio_schema_migrations (version TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))",
     );
     const applied = new Map(
-      (
-        await client.query(
-          "SELECT version, checksum FROM portfolio_schema_migrations",
-        )
-      ).rows.map((row) => [String(row.version), String(row.checksum)]),
+      database
+        .prepare("SELECT version, checksum FROM portfolio_schema_migrations")
+        .all()
+        .map((row) => [String(row.version), String(row.checksum)]),
     );
-    const pending: { version: string; sql: string; checksum: string }[] = [];
-    for (const version of (await readdir(directory))
-      .filter((name) => /^\d+_.+\.sql$/.test(name))
-      .sort()) {
-      const sql = await readFile(new URL(version, directory), "utf8");
-      // Normalize line endings so Windows and Linux checkouts record the same checksum.
-      const checksum = createHash("sha256")
-        .update(sql.replace(/\r\n/g, "\n"))
-        .digest("hex");
-      const recorded = applied.get(version);
-      if (recorded && recorded !== checksum)
+    const pending = migrations.filter((migration) => {
+      const recorded = applied.get(migration.version);
+      if (recorded && recorded !== migration.checksum)
         throw new Error(
-          `Migration ${version} changed after it was applied; add a new migration instead.`,
+          `Migration ${migration.version} changed after it was applied; add a new migration instead.`,
         );
-      if (!recorded) pending.push({ version, sql, checksum });
-    }
+      return !recorded;
+    });
     for (const migration of pending) {
-      await client.query("BEGIN");
-      try {
-        await client.query("SET LOCAL lock_timeout = '10s'");
-        await client.query(migration.sql);
-        await client.query(
-          "INSERT INTO portfolio_schema_migrations (version, checksum) VALUES ($1, $2)",
-          [migration.version, migration.checksum],
-        );
-        await client.query("COMMIT");
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      }
+      database.exec(migration.sql);
+      database
+        .prepare(
+          "INSERT INTO portfolio_schema_migrations (version, checksum) VALUES (?, ?)",
+        )
+        .run(migration.version, migration.checksum);
     }
+    database.exec("COMMIT");
     return pending.map((migration) => migration.version);
-  } finally {
-    await client.query("SELECT pg_advisory_unlock($1)", [lockKey]);
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
   }
 }

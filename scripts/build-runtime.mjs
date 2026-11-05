@@ -1,6 +1,6 @@
 import { build } from "esbuild";
 import fs from "node:fs";
-import { builtinModules } from "node:module";
+import { isBuiltin } from "node:module";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -16,6 +16,7 @@ const result = await build({
     "services/portfolio/src/index.ts",
     "services/portfolio/src/migrate.ts",
     "scripts/migrate-media-to-s3.ts",
+    "scripts/import-portfolio-snapshot.ts",
   ],
   // Mirror source paths so import.meta.url-relative assets resolve the same way at runtime.
   outbase: ".",
@@ -35,7 +36,7 @@ for (const [file, output] of Object.entries(result.metafile.outputs))
     const name = specifier.startsWith("@")
       ? specifier.split("/").slice(0, 2).join("/")
       : specifier.split("/")[0];
-    if (!builtinModules.includes(name) && !runtimeDependencies.includes(name))
+    if (!isBuiltin(entry.path) && !runtimeDependencies.includes(name))
       throw new Error(
         `${file} imports ${entry.path}, which is not a runtime dependency`,
       );

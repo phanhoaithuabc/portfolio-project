@@ -5,7 +5,6 @@ import YAML from "yaml";
 const helm = process.env.HELM_BIN ?? "helm";
 for (const [chart, namespace] of [
   ["portfolio", "portfolio"],
-  ["portfolio-db", "portfolio-data"],
   ["observability", "observability"],
 ]) {
   const lint = spawnSync(helm, ["lint", `deploy/helm/${chart}`], {
