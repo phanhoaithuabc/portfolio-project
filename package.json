@@ -45,17 +45,17 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-ec2": "^3.1159.0",
+    "@aws-sdk/client-ec2": "^3.1163.0",
     "@types/express": "^5.0.3",
     "@types/express-session": "^1.19.0",
     "@types/multer": "^2.3.0",
-    "@types/node": "^24.0.0",
-    "concurrently": "^9.2.0",
+    "@types/node": "^26.6.6",
+    "concurrently": "^10.0.6",
     "cross-env": "^10.1.0",
     "esbuild": "^0.28.2",
     "prettier": "^3.9.10",
     "tsx": "^4.20.0",
-    "typescript": "~5.9.3",
+    "typescript": "~7.0.2",
     "yaml": "^2.9.1"
   },
   "engines": {
